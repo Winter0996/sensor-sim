@@ -8,7 +8,7 @@ Work in progress.
 
 - [x] Binary serializer/parser with input validation
 - [x] Google Test suite (round trip, byte layout, invalid input)
-- [ ] UDP sender and receiver
+- [x] UDP sender and receiver
 - [ ] Sequence numbers to detect dropped or out-of-order packets
 - [ ] CI pipeline (build, test, static analysis)
 
