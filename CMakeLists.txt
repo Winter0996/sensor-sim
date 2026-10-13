@@ -5,10 +5,19 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-# Parsing library (reused later by the UDP sender and receiver)
+# Parsing library shared by the sender, receiver, and tests
 add_library(sensor_parser src/parser.cpp)
 target_include_directories(sensor_parser PUBLIC src)
 target_compile_options(sensor_parser PRIVATE -Wall -Wextra -Werror)
+
+# UDP sender and receiver
+add_executable(sender src/sender.cpp)
+target_link_libraries(sender PRIVATE sensor_parser)
+target_compile_options(sender PRIVATE -Wall -Wextra -Werror)
+
+add_executable(receiver src/receiver.cpp)
+target_link_libraries(receiver PRIVATE sensor_parser)
+target_compile_options(receiver PRIVATE -Wall -Wextra -Werror)
 
 # Google Test
 include(FetchContent)
