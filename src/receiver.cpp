@@ -13,6 +13,7 @@
 #include <vector>
 
 #include "parser.h"
+#include "sequence_tracker.h"
 
 namespace {
 
@@ -67,7 +68,7 @@ int main(int argc, char** argv) {
     }
 
     std::vector<std::uint8_t> buffer(2048);
-    unsigned long received = 0;
+    sensor::SequenceTracker tracker;
     unsigned long rejected = 0;
 
     std::printf("Listening on UDP port %u (Ctrl+C to stop)\n",
@@ -90,10 +91,29 @@ int main(int argc, char** argv) {
             continue;
         }
 
-        ++received;
+        const auto result = tracker.observe(detection->id);
+
         std::printf("id=%u range=%.1f m azimuth=%.1f deg t=%llu ms\n",
                     detection->id, detection->range_m, detection->azimuth_deg,
                     static_cast<unsigned long long>(detection->timestamp_ms));
+
+        switch (result.kind) {
+            case sensor::SequenceTracker::Kind::Gap:
+                std::printf("  ^ GAP: %u packet(s) missing before this one\n",
+                            result.missing);
+                break;
+            case sensor::SequenceTracker::Kind::Late:
+                std::printf("  ^ LATE: arrived out of order\n");
+                break;
+            case sensor::SequenceTracker::Kind::Duplicate:
+                std::printf("  ^ DUPLICATE\n");
+                break;
+            case sensor::SequenceTracker::Kind::Restart:
+                std::printf("  ^ RESTART: sender restarted or ids jumped\n");
+                break;
+            default:
+                break;
+        }
 
         if (csv.is_open()) {
             csv << detection->id << ',' << detection->range_m << ','
@@ -101,8 +121,19 @@ int main(int argc, char** argv) {
         }
     }
 
-    std::printf("\nStopped. Received %lu valid, rejected %lu invalid.\n", received,
-                rejected);
+    const auto& s = tracker.stats();
+    std::printf("\nStopped.\n");
+    std::printf("  Valid packets seen:  %llu\n",
+                static_cast<unsigned long long>(s.observed));
+    std::printf("  Rejected (invalid):  %lu\n", rejected);
+    std::printf("  Lost (never arrived): %llu\n",
+                static_cast<unsigned long long>(s.lost));
+    std::printf("  Out of order:        %llu\n",
+                static_cast<unsigned long long>(s.out_of_order));
+    std::printf("  Duplicates:          %llu\n",
+                static_cast<unsigned long long>(s.duplicates));
+    std::printf("  Sender restarts:     %llu\n",
+                static_cast<unsigned long long>(s.restarts));
     close(fd);
     return 0;
 }

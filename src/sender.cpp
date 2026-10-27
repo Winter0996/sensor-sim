@@ -9,16 +9,37 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <optional>
 #include <random>
 #include <thread>
 #include <vector>
 
 #include "parser.h"
 
+namespace {
+
+bool send_packet(int fd, const sockaddr_in& dest,
+                 const std::vector<std::uint8_t>& bytes) {
+    ssize_t sent = sendto(fd, bytes.data(), bytes.size(), 0,
+                          reinterpret_cast<const sockaddr*>(&dest), sizeof dest);
+    if (sent != static_cast<ssize_t>(bytes.size())) {
+        std::perror("sendto");
+        return false;
+    }
+    return true;
+}
+
+}  // namespace
+
+// Usage: sender [port] [count] [drop_percent] [reorder_percent]
 int main(int argc, char** argv) {
     const std::uint16_t port =
         (argc > 1) ? static_cast<std::uint16_t>(std::atoi(argv[1])) : 9000;
     const int count = (argc > 2) ? std::atoi(argv[2]) : 100;
+    const float drop_percent =
+        (argc > 3) ? static_cast<float>(std::atof(argv[3])) : 0.0f;
+    const float reorder_percent =
+        (argc > 4) ? static_cast<float>(std::atof(argv[4])) : 0.0f;
     constexpr int kRateHz = 20;
 
     int fd = socket(AF_INET, SOCK_DGRAM, 0);
@@ -41,11 +62,21 @@ int main(int argc, char** argv) {
     std::normal_distribution<float> range_noise(0.0f, 5.0f);
     std::normal_distribution<float> azimuth_noise(0.0f, 0.3f);
 
+    // Separate generator for drop/reorder decisions so runs are repeatable.
+    std::mt19937 impair_rng(777);
+    std::uniform_real_distribution<float> roll(0.0f, 100.0f);
+
     const auto period = std::chrono::milliseconds(1000 / kRateHz);
     auto next_send = std::chrono::steady_clock::now();
 
-    std::printf("Sending %d detections to 127.0.0.1:%u at %d Hz\n", count,
-                static_cast<unsigned>(port), kRateHz);
+    std::printf("Sending %d detections to 127.0.0.1:%u at %d Hz "
+                "(drop %.1f%%, reorder %.1f%%)\n",
+                count, static_cast<unsigned>(port), kRateHz, drop_percent,
+                reorder_percent);
+
+    std::optional<std::vector<std::uint8_t>> held;
+    int dropped = 0;
+    int reordered = 0;
 
     for (int i = 0; i < count; ++i) {
         const float t = static_cast<float>(i) / static_cast<float>(kRateHz);
@@ -64,10 +95,18 @@ int main(int argc, char** argv) {
                 .count());
 
         std::vector<std::uint8_t> bytes = sensor::serialize(d);
-        ssize_t sent = sendto(fd, bytes.data(), bytes.size(), 0,
-                              reinterpret_cast<const sockaddr*>(&dest), sizeof dest);
-        if (sent != static_cast<ssize_t>(bytes.size())) {
-            std::perror("sendto");
+
+        if (roll(impair_rng) < drop_percent) {
+            ++dropped;  // never sent
+        } else if (!held.has_value() && roll(impair_rng) < reorder_percent) {
+            held = bytes;  // hold this one back until after the next packet
+            ++reordered;
+        } else {
+            send_packet(fd, dest, bytes);
+            if (held.has_value()) {
+                send_packet(fd, dest, *held);  // arrives after a later packet
+                held.reset();
+            }
         }
 
         if (i % kRateHz == 0) {
@@ -80,7 +119,11 @@ int main(int argc, char** argv) {
         std::this_thread::sleep_until(next_send);
     }
 
+    if (held.has_value()) {
+        send_packet(fd, dest, *held);
+    }
+
     close(fd);
-    std::printf("Done.\n");
+    std::printf("Done. Dropped %d, reordered %d.\n", dropped, reordered);
     return 0;
 }

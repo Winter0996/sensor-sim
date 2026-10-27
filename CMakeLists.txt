@@ -5,8 +5,13 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-# Parsing library shared by the sender, receiver, and tests
-add_library(sensor_parser src/parser.cpp)
+# Use extraction-time timestamps for downloaded archives (silences CMP0135 warning).
+if(POLICY CMP0135)
+  cmake_policy(SET CMP0135 NEW)
+endif()
+
+# Core library shared by the sender, receiver, and tests
+add_library(sensor_parser src/parser.cpp src/sequence_tracker.cpp)
 target_include_directories(sensor_parser PUBLIC src)
 target_compile_options(sensor_parser PRIVATE -Wall -Wextra -Werror)
 
@@ -26,7 +31,9 @@ FetchContent_Declare(googletest
 FetchContent_MakeAvailable(googletest)
 
 enable_testing()
-add_executable(unit_tests tests/test_parser.cpp)
+add_executable(unit_tests
+  tests/test_parser.cpp
+  tests/test_sequence_tracker.cpp)
 target_link_libraries(unit_tests PRIVATE sensor_parser GTest::gtest_main)
 target_compile_options(unit_tests PRIVATE -Wall -Wextra -Werror)
 
