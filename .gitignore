@@ -1,3 +1,7 @@
 build/
 build-san/
+data/
+plots/
+.venv/
 *.csv
+!examples/*.csv
