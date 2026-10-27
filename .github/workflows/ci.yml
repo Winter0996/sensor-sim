@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure
+        run: cmake -S . -B build
+
+      - name: Build
+        run: cmake --build build
+
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+
+  static-analysis:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install tools
+        run: sudo apt-get update && sudo apt-get install -y cppcheck clang-tidy
+
+      - name: Configure (generates compile_commands.json)
+        run: cmake -S . -B build
+
+      - name: cppcheck
+        run: cppcheck --enable=warning,style,performance,portability --std=c++17 --error-exitcode=1 --suppress=missingIncludeSystem -I src src/
+
+      - name: clang-tidy
+        run: clang-tidy -p build src/parser.cpp src/sequence_tracker.cpp src/sender.cpp src/receiver.cpp
+
+  sanitizers:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure with AddressSanitizer and UBSan
+        run: cmake -S . -B build-san -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer"
+
+      - name: Build
+        run: cmake --build build-san
+
+      - name: Test under sanitizers
+        run: ctest --test-dir build-san --output-on-failure
