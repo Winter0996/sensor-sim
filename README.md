@@ -9,11 +9,7 @@ Work in progress.
 - [x] Binary serializer/parser with input validation
 - [x] Google Test suite (round trip, byte layout, invalid input)
 - [x] UDP sender and receiver
-<<<<<<< HEAD
-- [ ] Sequence numbers to detect dropped or out-of-order packets
-=======
 - [x] Sequence numbers to detect dropped or out-of-order packets
->>>>>>> 053b75a (Add sequence tracking for dropped, late, and duplicate packets)
 - [ ] CI pipeline (build, test, static analysis)
 
 ## Wire format

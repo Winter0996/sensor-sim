@@ -10,7 +10,7 @@ namespace sensor {
 // Ids are compared with a signed 32-bit difference, so wraparound is handled.
 class SequenceTracker {
 public:
-    enum class Kind {
+    enum class Kind : std::uint8_t {
         First,      // first packet seen
         InOrder,    // exactly the id we expected
         Gap,        // ids were skipped; they are now counted as lost

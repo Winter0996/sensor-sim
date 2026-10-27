@@ -1,0 +1,3 @@
+Checks: 'bugprone-*,performance-*,clang-analyzer-*,-bugprone-easily-swappable-parameters'
+WarningsAsErrors: ''
+HeaderFilterRegex: 'src/.*'
